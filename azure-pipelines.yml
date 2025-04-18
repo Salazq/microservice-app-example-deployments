@@ -1,0 +1,53 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  TF_WORKING_DIR: terraform
+
+stages:
+- stage: TerraformPlan
+  jobs:
+  - job: Plan
+    steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
+    - script: |
+        echo "Configurando variables de entorno para Terraform"
+        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
+
+        terraform --version
+        cd $(TF_WORKING_DIR)
+        terraform init
+        terraform plan -out=tfplan
+      displayName: 'Terraform Init and Plan'
+
+- stage: TerraformApply
+  jobs:
+  - job: Apply
+    steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
+    - script: |
+        echo "Configurando variables de entorno para Terraform"
+        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
+
+        terraform --version
+        cd $(TF_WORKING_DIR)
+        terraform init
+        terraform apply -auto-approve tfplan
+      displayName: 'Terraform Init and Apply'
+
+
