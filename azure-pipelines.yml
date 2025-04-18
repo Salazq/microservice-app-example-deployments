@@ -1,53 +1,40 @@
 trigger:
-- main
+  branches:
+    include:
+      - main
 
 pool:
-  vmImage: 'ubuntu-latest'
-
-variables:
-  TF_WORKING_DIR: terraform
+  vmImage: ubuntu-latest
 
 stages:
-- stage: TerraformPlan
+- stage: Terraform_plan
   jobs:
-  - job: Plan
-    steps:
-    - task: TerraformInstaller@0
-      inputs:
-        terraformVersion: 'latest'
+    - job: Plan
+      continueOnError: false
+      steps:
+        - task: TerraformTaskV4@4
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+            backendAzureRmResourceGroupName: 'VM'
+            backendAzureRmStorageAccountName: 'vmrecursos'
+            backendAzureRmContainerName: 'tfstate'
+            backendAzureRmKey: 'pipelines.tfstate'
+          displayName: 'Terraform init'
 
-    - script: |
-        echo "Configurando variables de entorno para Terraform"
-        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
-
-        terraform --version
-        cd $(TF_WORKING_DIR)
-        terraform init
-        terraform plan -out=tfplan
-      displayName: 'Terraform Init and Plan'
-
-- stage: TerraformApply
-  jobs:
-  - job: Apply
-    steps:
-    - task: TerraformInstaller@0
-      inputs:
-        terraformVersion: 'latest'
-
-    - script: |
-        echo "Configurando variables de entorno para Terraform"
-        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
-
-        terraform --version
-        cd $(TF_WORKING_DIR)
-        terraform init
-        terraform apply -auto-approve tfplan
-      displayName: 'Terraform Init and Apply'
-
-
+        - task: TerraformTaskV4@4
+          inputs:
+            provider: 'azurerm'
+            command: 'plan'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+          displayName: 'Terraform Plan'
+      
+        - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: '$(System.DefaultWorkingDirectory)/terraform/plan.out'
+            artifact: 'Plan'
+            publishLocation: 'pipeline'
+          displayName: 'Publish Plan Artifact'  
