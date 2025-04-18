@@ -1,6 +1,6 @@
-data "azurerm_resource_group" "rg" {
-  name = "VM"
-  location = "East US"
+resource "azurerm_resource_group" "rg" {
+  location = var.resource_group_location
+  name     = "my-first-terraform-RG"
 }
 
 # Create virtual network
