@@ -5,7 +5,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # Estas variables se configuran en el portal de Azure DevOps como secretas
+  # Variables definidas en el portal como secretas
   ARM_CLIENT_ID: $(ARM_CLIENT_ID)
   ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
   ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
@@ -18,17 +18,13 @@ stages:
   - job: TerraformPlan
     displayName: 'Terraform Plan'
     steps:
-    - task: TerraformInstaller@0
-      inputs:
-        terraformVersion: 'latest'
-
     - script: |
         cd terraform
         export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
         export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
         export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
         export ARM_TENANT_ID=$(ARM_TENANT_ID)
-        
+
         terraform --version
         terraform init -backend-config="storage_account_name=$(storageAccountName)" \
                        -backend-config="container_name=$(containerName)" \
@@ -44,10 +40,6 @@ stages:
   - job: TerraformApply
     displayName: 'Terraform Apply'
     steps:
-    - task: TerraformInstaller@0
-      inputs:
-        terraformVersion: 'latest'
-
     - script: |
         cd terraform
         export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
