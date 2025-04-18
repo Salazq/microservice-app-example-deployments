@@ -9,31 +9,19 @@ variables:
 
 stages:
 - stage: TerraformPlan
-  displayName: "Terraform Plan"
   jobs:
   - job: Plan
-    displayName: "Terraform Plan"
     steps:
     - task: TerraformInstaller@0
       inputs:
         terraformVersion: 'latest'
 
-    - task: DownloadSecureFile@1
-      name: DownloadEnv
-      inputs:
-        secureFile: '.connection.env'  # Nombre del archivo Secure File
-
-    # Copiar el archivo a la carpeta terraform/
     - script: |
-        echo "Copiando .connection.env a la carpeta terraform/"
-        cp $(DownloadEnv.secureFilePath) $(TF_WORKING_DIR)/.connection.env
-      displayName: 'Copy .connection.env to terraform directory'
-
-    - script: |
-        echo "Cargando variables desde .connection.env"
-        set -a
-        source $(TF_WORKING_DIR)/.connection.env
-        set +a
+        echo "Configurando variables de entorno para Terraform"
+        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
 
         terraform --version
         cd $(TF_WORKING_DIR)
@@ -42,37 +30,24 @@ stages:
       displayName: 'Terraform Init and Plan'
 
 - stage: TerraformApply
-  displayName: "Terraform Apply"
-  dependsOn: TerraformPlan
-  condition: succeeded()
   jobs:
   - job: Apply
-    displayName: "Terraform Apply"
     steps:
     - task: TerraformInstaller@0
       inputs:
         terraformVersion: 'latest'
 
-    - task: DownloadSecureFile@1
-      name: DownloadEnv
-      inputs:
-        secureFile: '.connection.env'  # Usa el mismo archivo
-
-    # Copiar el archivo a la carpeta terraform/
     - script: |
-        echo "Copiando .connection.env a la carpeta terraform/"
-        cp $(DownloadEnv.secureFilePath) $(TF_WORKING_DIR)/.connection.env
-      displayName: 'Copy .connection.env to terraform directory'
-
-    - script: |
-        echo "Cargando variables desde .connection.env"
-        set -a
-        source $(TF_WORKING_DIR)/.connection.env
-        set +a
+        echo "Configurando variables de entorno para Terraform"
+        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
 
         terraform --version
         cd $(TF_WORKING_DIR)
         terraform init
         terraform apply -auto-approve tfplan
       displayName: 'Terraform Init and Apply'
+
 
