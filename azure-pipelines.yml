@@ -5,11 +5,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # Variables definidas en el portal como secretas
-  ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-  ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-  ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-  ARM_TENANT_ID: $(ARM_TENANT_ID)
+  terraformWorkingDirectory: 'terraform'
 
 stages:
 - stage: Plan
@@ -18,39 +14,46 @@ stages:
   - job: TerraformPlan
     displayName: 'Terraform Plan'
     steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
     - script: |
-        cd terraform
+        echo "Exporting Azure authentication variables..."
         export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
         export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
         export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
         export ARM_TENANT_ID=$(ARM_TENANT_ID)
 
+        cd $(terraformWorkingDirectory)
+
         terraform --version
-        terraform init -backend-config="storage_account_name=$(storageAccountName)" \
-                       -backend-config="container_name=$(containerName)" \
-                       -backend-config="key=$(key)" \
-                       -backend-config="access_key=$(accessKey)"
+        terraform init
         terraform plan -out=tfplan
       displayName: 'Terraform Init and Plan'
 
 - stage: Deploy
   displayName: 'Terraform Apply'
   dependsOn: Plan
+  condition: succeeded()
   jobs:
   - job: TerraformApply
     displayName: 'Terraform Apply'
     steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
     - script: |
-        cd terraform
+        echo "Exporting Azure authentication variables..."
         export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
         export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
         export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
         export ARM_TENANT_ID=$(ARM_TENANT_ID)
 
+        cd $(terraformWorkingDirectory)
+
         terraform --version
-        terraform init -backend-config="storage_account_name=$(storageAccountName)" \
-                       -backend-config="container_name=$(containerName)" \
-                       -backend-config="key=$(key)" \
-                       -backend-config="access_key=$(accessKey)"
+        terraform init
         terraform apply -auto-approve tfplan
       displayName: 'Terraform Init and Apply'
