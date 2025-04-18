@@ -3,8 +3,14 @@ variable "resource_group_location" {
   description = "Location of the resource group."
 }
 
-variable "skip_aad_permissions" {
-  description = "Skip Azure AD permissions check"
+variable "disable_aad_api" {
+  description = "Disable Azure AD API calls"
   type        = bool
   default     = false
+}
+
+variable "subscription_id" {
+  description = "Azure Subscription ID"
+  type        = string
+  default     = "bfc3d097-7e73-40b8-aa34-e70b307c0867" # Puedes poner un valor por defecto o dejarlo vacío
 }

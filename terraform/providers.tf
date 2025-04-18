@@ -10,5 +10,11 @@ terraform {
 
 provider "azurerm" {
   features {}
-  skip_provider_registration = var.skip_aad_permissions
+
+  # Configuración para evitar errores de permisos
+  skip_provider_registration = true
+  disable_aad_api            = var.disable_aad_api
+  
+  # Opcional: Especificar subscription_id si es necesario
+  subscription_id = var.subscription_id
 }
