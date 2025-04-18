@@ -1,6 +1,6 @@
 data "azurerm_resource_group" "rg" {
   name = "VM"
-  location "East US"
+  location = "East US"
 }
 
 # Create virtual network
