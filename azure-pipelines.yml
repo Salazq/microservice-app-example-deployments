@@ -1,53 +1,108 @@
 trigger:
-- main
-
-pool:
-  vmImage: 'ubuntu-latest'
+  branches:
+    include:
+      - main
 
 variables:
-  TF_WORKING_DIR: terraform
+  terraformVersion: '1.5.7'  # Versión específica de Terraform
+  workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+  serviceConnection: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+  backendResourceGroup: 'VM'
+  backendStorageAccount: 'vmrecursos'
+  backendContainer: 'tfstate'
+  backendKey: 'pipelines.tfstate'
+
+pool:
+  vmImage: ubuntu-latest
 
 stages:
-- stage: TerraformPlan
+- stage: Terraform_Plan
+  displayName: 'Terraform Plan'
   jobs:
   - job: Plan
+    displayName: 'Terraform Plan Job'
     steps:
     - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
       inputs:
-        terraformVersion: 'latest'
+        terraformVersion: $(terraformVersion)
 
-    - script: |
-        echo "Configurando variables de entorno para Terraform"
-        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
+    - script: terraform --version
+      displayName: 'Verify Terraform version'
 
-        terraform --version
-        cd $(TF_WORKING_DIR)
-        terraform init
-        terraform plan -out=tfplan
-      displayName: 'Terraform Init and Plan'
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: $(workingDirectory)
+        backendServiceArm: $(serviceConnection)
+        backendAzureRmResourceGroupName: $(backendResourceGroup)
+        backendAzureRmStorageAccountName: $(backendStorageAccount)
+        backendAzureRmContainerName: $(backendContainer)
+        backendAzureRmKey: $(backendKey)
+        commandOptions: '-reconfigure'
 
-- stage: TerraformApply
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Validate'
+      inputs:
+        provider: 'azurerm'
+        command: 'validate'
+        workingDirectory: $(workingDirectory)
+
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Plan'
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: $(workingDirectory)
+        environmentServiceNameAzureRM: $(serviceConnection)
+        commandOptions: '-out=terraform.tfplan -var skip_aad_permissions=true'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Plan Artifact'
+      inputs:
+        targetPath: '$(workingDirectory)/terraform.tfplan'
+        artifact: 'TerraformPlan'
+        publishLocation: 'pipeline'
+
+- stage: Terraform_Apply
+  displayName: 'Terraform Apply'
+  dependsOn: Terraform_Plan
+  condition: succeeded()
   jobs:
   - job: Apply
+    displayName: 'Terraform Apply Job'
     steps:
     - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
       inputs:
-        terraformVersion: 'latest'
+        terraformVersion: $(terraformVersion)
 
-    - script: |
-        echo "Configurando variables de entorno para Terraform"
-        export TF_VAR_ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-        export TF_VAR_ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-        export TF_VAR_ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-        export TF_VAR_ARM_TENANT_ID=$(ARM_TENANT_ID)
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download Plan Artifact'
+      inputs:
+        artifact: 'TerraformPlan'
+        path: '$(workingDirectory)'
 
-        terraform --version
-        cd $(TF_WORKING_DIR)
-        terraform init
-        terraform apply -auto-approve tfplan
-      displayName: 'Terraform Init and Apply'
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: $(workingDirectory)
+        backendServiceArm: $(serviceConnection)
+        backendAzureRmResourceGroupName: $(backendResourceGroup)
+        backendAzureRmStorageAccountName: $(backendStorageAccount)
+        backendAzureRmContainerName: $(backendContainer)
+        backendAzureRmKey: $(backendKey)
+        commandOptions: '-reconfigure'
 
-
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Apply'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: $(workingDirectory)
+        environmentServiceNameAzureRM: $(serviceConnection)
+        commandOptions: 'terraform.tfplan'
