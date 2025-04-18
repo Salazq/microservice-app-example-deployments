@@ -55,9 +55,8 @@ stages:
       inputs:
         provider: 'azurerm'
         command: 'plan'
-        workingDirectory: $(workingDirectory)
         environmentServiceNameAzureRM: $(serviceConnection)
-        commandOptions: '-out=terraform.tfplan -var skip_aad_permissions=true'
+        commandOptions: '-out=tfplan'
 
     - task: PublishPipelineArtifact@1
       displayName: 'Publish Plan Artifact'
