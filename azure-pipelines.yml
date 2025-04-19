@@ -119,33 +119,6 @@ stages:
       displayName: 'Capture Public IP'
       name: CaptureIP
 
-- stage: Print_VM_IP
-  condition: succeeded()
-  jobs:
-  - job: Fetch_VM_IP
-    steps:
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          VM_NAME="vm-taller"
-          RESOURCE_GROUP="my-first-terraform-RG"
-
-          echo "Obteniendo IP pública de la VM: $VM_NAME en el grupo $RESOURCE_GROUP"
-
-          PUBLIC_IP=$(az vm show \
-            --name "$VM_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --show-details \
-            --query "publicIps" \
-            --output tsv)
-
-          echo "IP pública de la VM '$VM_NAME': $PUBLIC_IP"
-      displayName: 'Obtener y mostrar IP pública de la VM'
-
-
 - stage: Ansible_Deploy
   #condition: false
   dependsOn: Terraform_apply
