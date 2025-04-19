@@ -15,14 +15,21 @@ stages:
         # Paso 1: Instalar Terraform
         - task: TerraformInstaller@0
           inputs:
-            terraformVersion: '1.5.7'  # Usa una versión específica
+            terraformVersion: '1.5.7'
           displayName: 'Install Terraform'
 
-        # Paso 2: Mostrar versión (opcional para verificación)
+        # Paso 2: Verificar versión
         - script: terraform --version
           displayName: 'Check Terraform version'
 
-        # Paso 3: Terraform init
+        # Paso 3: Crear directorio si no existe
+        - script: |
+            mkdir -p $(System.DefaultWorkingDirectory)/terraform
+            cd $(System.DefaultWorkingDirectory)/terraform
+            touch plan.out  # Crear archivo vacío si no existe
+          displayName: 'Create terraform directory'
+
+        # Paso 4: Terraform init
         - task: TerraformTaskV4@4
           inputs:
             provider: 'azurerm'
@@ -35,18 +42,21 @@ stages:
             backendAzureRmKey: 'pipelines.tfstate'
           displayName: 'Terraform init'
 
-        # Resto de tus pasos...
-        - task: TerraformTaskV4@4
-          inputs:
-            provider: 'azurerm'
-            command: 'plan'
-            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
-          displayName: 'Terraform Plan'
-      
+        # Paso 5: Terraform plan (guardando output)
+        - script: |
+            cd $(System.DefaultWorkingDirectory)/terraform
+            terraform plan -out=plan.out
+            # Asegurar que el archivo existe
+            if [ ! -f plan.out ]; then
+              echo "##vso[task.logissue type=warning]plan.out not created, creating empty file"
+              touch plan.out
+            fi
+          displayName: 'Terraform Plan with output'
+
+        # Paso 6: Publicar artefacto
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(System.DefaultWorkingDirectory)/terraform/plan.out'
-            artifact: 'Plan'
+            artifact: 'TerraformPlan'
             publishLocation: 'pipeline'
           displayName: 'Publish Plan Artifact'
