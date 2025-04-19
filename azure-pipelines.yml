@@ -110,3 +110,37 @@ stages:
         workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
         commandOptions: '"plan.out"'
         environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+
+    - script: |
+        cd $(System.DefaultWorkingDirectory)/terraform
+        PUBLIC_IP=$(terraform output -raw public_ip_address)
+        echo "Public IP: $PUBLIC_IP"
+        echo "##vso[task.setvariable variable=PUBLIC_IP;isOutput=true]$PUBLIC_IP"
+      displayName: 'Capture Public IP'
+      name: CaptureIP
+
+- stage: Ansible_Deploy
+  dependsOn: Terraform_apply
+  variables:
+    PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
+  jobs:
+  - job: Configure
+    steps:
+    - script: |
+        echo "Generando archivo de inventario..."
+        mkdir -p $(System.DefaultWorkingDirectory)/ansible-deploy/inventory
+        cat <<EOF > $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
+        [azure_vm]
+        $(PUBLIC_IP) ansible_user=azureuser ansible_ssh_pass=SuperSecret123!
+        EOF
+        
+        echo "Inventario generado:"
+        cat $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
+      displayName: 'Generar inventory/hosts.ini'
+    
+    - script: |
+        cd $(System.DefaultWorkingDirectory)/ansible-deploy
+        ANSIBLE_HOST_KEY_CHECKING=False \
+        ANSIBLE_ROLES_PATH=./roles \
+        ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml
+      displayName: 'Ejecutar playbook Ansible'
