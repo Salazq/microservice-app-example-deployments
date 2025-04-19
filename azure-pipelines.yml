@@ -119,42 +119,32 @@ stages:
       displayName: 'Capture Public IP'
       name: CaptureIP
 
-- stage: Save_IP
-  dependsOn: Terraform_apply
+- stage: Print_VM_IP
   condition: succeeded()
   jobs:
-  - job: Update_Variables
-    variables:
-      PUBLIC_IP: '172.191.69.200'
+  - job: Fetch_VM_IP
     steps:
-    - task: PowerShell@2
+    - task: AzureCLI@2
       inputs:
-        targetType: 'inline'
-        script: |
-          Write-Host "IP a guardar: $(PUBLIC_IP)"
-          
-          # Actualizar la variable usando la API de Azure DevOps
-          $url = "https://dev.azure.com/salazq/microservice-app-example/_apis/distributedtask/variablegroups/1?api-version=6.0-preview.2"
-          
-          # Primero, obtenemos el grupo de variables actual
-          $pat = "$(System.AccessToken)"
-          $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$pat"))
-          $headers = @{
-              Authorization = "Basic $base64AuthInfo"
-              "Content-Type" = "application/json"
-          }
-          
-          $group = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
-          
-          # Actualizamos la variable
-          $group.variables.VM_IP.value = "$(PUBLIC_IP)"
-          
-          # Enviamos la actualización
-          $body = $group | ConvertTo-Json -Depth 10
-          Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body
-          
-          Write-Host "Variable Group actualizado correctamente"
-      displayName: 'Actualizar Variable Group con IP pública'
+        azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          VM_NAME="vm-taller"
+          RESOURCE_GROUP="my-first-terraform-RG"
+
+          echo "Obteniendo IP pública de la VM: $VM_NAME en el grupo $RESOURCE_GROUP"
+
+          PUBLIC_IP=$(az vm show \
+            --name "$VM_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --show-details \
+            --query "publicIps" \
+            --output tsv)
+
+          echo "IP pública de la VM '$VM_NAME': $PUBLIC_IP"
+      displayName: 'Obtener y mostrar IP pública de la VM'
+
 
 - stage: Ansible_Deploy
   #condition: false
