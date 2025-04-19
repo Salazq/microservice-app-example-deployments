@@ -57,7 +57,7 @@ stages:
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(System.DefaultWorkingDirectory)/terraform/plan.out'
-            artifact: 'TerraformPlan'
+            artifact: 'Plan'
             publishLocation: 'pipeline'
           displayName: 'Publish Plan Artifact'
 
@@ -66,6 +66,11 @@ stages:
   - job: Deploy
     continueOnError: false
     steps:
+   
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: '1.5.7'
+        displayName: 'Install Terraform'
 
     - task: TerraformTaskV4@4
       inputs:
