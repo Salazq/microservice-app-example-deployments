@@ -148,7 +148,7 @@ stages:
       displayName: 'Actualizar Variable Group con IP pública'
 
 - stage: Ansible_Deploy
-  condition: false
+  #condition: false
   dependsOn: Terraform_apply
   variables:
     PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
