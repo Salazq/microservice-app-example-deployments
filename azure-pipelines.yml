@@ -121,6 +121,8 @@ stages:
 
 - stage: Save_IP
   dependsOn: Terraform_apply
+  variables:
+    PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
   condition: succeeded()
   jobs:
   - job: Update_Variables
@@ -131,18 +133,12 @@ stages:
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          # Obtener la IP del output de Terraform
-          cd $(System.DefaultWorkingDirectory)/terraform
-          IP=$(terraform output -raw public_ip_address)
-          echo "IP obtenida: $IP"
-          
-          # Actualizar Variable Group
           az pipelines variable-group update \
             --group-id 1 \
             --organization "https://dev.azure.com/salazq" \
             --project "microservice-app-example" \
             --name "variable-group-taller" \
-            --variables VM_IP=$IP
+            --variables VM_IP=$(PUBLIC_IP)
           
           echo "Variable Group actualizado correctamente"
       displayName: 'Actualizar Variable Group con IP pública'
