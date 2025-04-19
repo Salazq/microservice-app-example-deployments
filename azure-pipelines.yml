@@ -125,29 +125,36 @@ stages:
   jobs:
   - job: Update_Variables
     variables:
-      PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
+      PUBLIC_IP: '172.191.69.200'
     steps:
-    - task: AzureCLI@2
+    - task: PowerShell@2
       inputs:
-        azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          echo "IP a guardar: $PUBLIC_IP"
+        targetType: 'inline'
+        script: |
+          Write-Host "IP a guardar: $(PUBLIC_IP)"
           
-          # Actualizar Variable Group
-          az pipelines variable-group variable update \
-            --group-id 1 \
-            --organization "https://dev.azure.com/salazq" \
-            --project "microservice-app-example" \
-            --name "VM_IP" \
-            --value "$PUBLIC_IP"
+          # Actualizar la variable usando la API de Azure DevOps
+          $url = "https://dev.azure.com/salazq/microservice-app-example/_apis/distributedtask/variablegroups/1?api-version=6.0-preview.2"
           
-          echo "Variable Group actualizado correctamente"
-      env:
-        PUBLIC_IP: $(PUBLIC_IP)
+          # Primero, obtenemos el grupo de variables actual
+          $pat = "$(System.AccessToken)"
+          $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$pat"))
+          $headers = @{
+              Authorization = "Basic $base64AuthInfo"
+              "Content-Type" = "application/json"
+          }
+          
+          $group = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
+          
+          # Actualizamos la variable
+          $group.variables.VM_IP.value = "$(PUBLIC_IP)"
+          
+          # Enviamos la actualización
+          $body = $group | ConvertTo-Json -Depth 10
+          Invoke-RestMethod -Uri $url -Headers $headers -Method Put -Body $body
+          
+          Write-Host "Variable Group actualizado correctamente"
       displayName: 'Actualizar Variable Group con IP pública'
-
 
 - stage: Ansible_Deploy
   #condition: false
