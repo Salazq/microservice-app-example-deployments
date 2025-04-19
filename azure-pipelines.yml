@@ -60,3 +60,43 @@ stages:
             artifact: 'TerraformPlan'
             publishLocation: 'pipeline'
           displayName: 'Publish Plan Artifact'
+
+- stage: Terraform_apply 
+  jobs:
+  - job: Deploy
+    continueOnError: false
+    steps:
+
+    - task: TerraformTaskV4@4
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        backendAzureRmResourceGroupName: 'VM'
+        backendAzureRmStorageAccountName: 'recursos'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'pipelines.tfstate'
+      displayName: 'Terraform init'
+      
+    - task: DownloadBuildArtifacts@1
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: 'Plan'
+        downloadPath: '$(System.DefaultWorkingDirectory)/terraform'
+      displayName: 'Download Plan Artifact'
+    
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: 'ls -a'
+      displayName: 'Check plan file'
+
+    - task: TerraformTaskV4@4
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        commandOptions: '"plan.out"'
+        environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
