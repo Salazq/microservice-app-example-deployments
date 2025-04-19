@@ -1,0 +1,51 @@
+trigger: none
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+- stage: Terraform_destroy
+  jobs:
+    - job: Destroy
+      continueOnError: false
+      steps:
+        # Paso 1: Instalar Terraform
+        - task: TerraformInstaller@0
+          inputs:
+            terraformVersion: '1.5.7'
+          displayName: 'Install Terraform'
+
+        # Paso 2: Verificar versión
+        - script: terraform --version
+          displayName: 'Check Terraform version'
+
+        # Paso 3: Crear directorio si no existe
+        - script: |
+            mkdir -p $(System.DefaultWorkingDirectory)/terraform
+            cd $(System.DefaultWorkingDirectory)/terraform
+          displayName: 'Create terraform directory'
+
+        # Paso 4: Terraform init
+        - task: TerraformTaskV4@4
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+            backendAzureRmResourceGroupName: 'VM'
+            backendAzureRmStorageAccountName: 'vmrecursos'
+            backendAzureRmContainerName: 'tfstate'
+            backendAzureRmKey: 'pipelines.tfstate'
+          displayName: 'Terraform init'
+
+        # Paso 5: Terraform destroy (auto-approve)
+        - task: TerraformTaskV4@4
+          inputs:
+            provider: 'azurerm'
+            command: 'destroy'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            commandOptions: '-auto-approve'
+            environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+          displayName: 'Terraform Destroy'
