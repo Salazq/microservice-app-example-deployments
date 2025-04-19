@@ -1,50 +1,10 @@
-trigger: none
-
-pr: none
-
-
-pool:
-  vmImage: ubuntu-latest
-
-stages:
-- stage: Terraform_plan
-  jobs:
-    - job: Plan
-      continueOnError: false
-      steps:
-        # Paso 1: Instalar Terraform
-        - task: TerraformInstaller@0
-          inputs:
-            terraformVersion: '1.5.7'
-          displayName: 'Install Terraform'
-
-        # Paso 2: Verificar versión
-        - script: terraform --version
-          displayName: 'Check Terraform version'
-
-
-        # Paso 4: Terraform init
-        - task: TerraformTaskV4@4
-          inputs:
-            provider: 'azurerm'
-            command: 'init'
-            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
-            backendAzureRmResourceGroupName: 'VM'
-            backendAzureRmStorageAccountName: 'vmrecursos'
-            backendAzureRmContainerName: 'tfstate'
-            backendAzureRmKey: 'pipelines.tfstate'
-          displayName: 'Terraform init'
-
-      
-        - script: |
-            cd $(System.DefaultWorkingDirectory)/terraform
-            terraform plan 
-          displayName: 'Terraform Plan with output'
-
-        - task: TerraformTaskV4@4
-          inputs:
-            provider: 'azurerm'
-            command: 'destroy'
-            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+steps:
+- task: AzureCLI@2
+  displayName: 'Eliminar grupo de recursos'
+  inputs:
+    azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az group delete --name my-first-terraform-RG --yes --no-wait
+      echo "Grupo de recursos eliminado o en proceso de eliminación"
