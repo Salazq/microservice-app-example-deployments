@@ -2,6 +2,11 @@ trigger:
   branches:
     include:
       - main
+  
+  paths:
+    include:
+      - terraform/*
+      - ansible-deploy/*
 
 pool:
   vmImage: ubuntu-latest
@@ -15,14 +20,21 @@ stages:
         # Paso 1: Instalar Terraform
         - task: TerraformInstaller@0
           inputs:
-            terraformVersion: '1.5.7'  # Usa una versión específica
+            terraformVersion: '1.5.7'
           displayName: 'Install Terraform'
 
-        # Paso 2: Mostrar versión (opcional para verificación)
+        # Paso 2: Verificar versión
         - script: terraform --version
           displayName: 'Check Terraform version'
 
-        # Paso 3: Terraform init
+        # Paso 3: Crear directorio si no existe
+        - script: |
+            mkdir -p $(System.DefaultWorkingDirectory)/terraform
+            cd $(System.DefaultWorkingDirectory)/terraform
+            touch plan.out  # Crear archivo vacío si no existe
+          displayName: 'Create terraform directory'
+
+        # Paso 4: Terraform init
         - task: TerraformTaskV4@4
           inputs:
             provider: 'azurerm'
@@ -35,18 +47,100 @@ stages:
             backendAzureRmKey: 'pipelines.tfstate'
           displayName: 'Terraform init'
 
-        # Resto de tus pasos...
-        - task: TerraformTaskV4@4
-          inputs:
-            provider: 'azurerm'
-            command: 'plan'
-            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
-          displayName: 'Terraform Plan'
-      
+        # Paso 5: Terraform plan (guardando output)
+        - script: |
+            cd $(System.DefaultWorkingDirectory)/terraform
+            terraform plan -out=plan.out
+            # Asegurar que el archivo existe
+            if [ ! -f plan.out ]; then
+              echo "##vso[task.logissue type=warning]plan.out not created, creating empty file"
+              touch plan.out
+            fi
+          displayName: 'Terraform Plan with output'
+
+        # Paso 6: Publicar artefacto
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(System.DefaultWorkingDirectory)/terraform/plan.out'
             artifact: 'Plan'
             publishLocation: 'pipeline'
           displayName: 'Publish Plan Artifact'
+
+- stage: Terraform_apply 
+  jobs:
+  - job: Deploy
+    continueOnError: false
+    steps:
+   
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: '1.5.7'
+        displayName: 'Install Terraform'
+
+    - task: TerraformTaskV4@4
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        backendAzureRmResourceGroupName: 'VM'
+        backendAzureRmStorageAccountName: 'recursos'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'pipelines.tfstate'
+      displayName: 'Terraform init'
+      
+    - task: DownloadBuildArtifacts@1
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: 'Plan'
+        downloadPath: '$(System.DefaultWorkingDirectory)/terraform'
+      displayName: 'Download Plan Artifact'
+    
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: 'ls -a'
+      displayName: 'Check plan file'
+
+    - task: TerraformTaskV4@4
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        commandOptions: '"plan.out"'
+        environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+
+    - script: |
+        cd $(System.DefaultWorkingDirectory)/terraform
+        PUBLIC_IP=$(terraform output -raw public_ip_address)
+        echo "Public IP: $PUBLIC_IP"
+        echo "##vso[task.setvariable variable=PUBLIC_IP;isOutput=true]$PUBLIC_IP"
+      displayName: 'Capture Public IP'
+      name: CaptureIP
+
+- stage: Ansible_Deploy
+  dependsOn: Terraform_apply
+  variables:
+    PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
+  jobs:
+  - job: Configure
+    steps:
+    - script: |
+        echo "Generando archivo de inventario..."
+        mkdir -p $(System.DefaultWorkingDirectory)/ansible-deploy/inventory
+        cat <<EOF > $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
+        [azure_vm]
+        $(PUBLIC_IP) ansible_user=azureuser ansible_ssh_pass=SuperSecret123!
+        EOF
+        
+        echo "Inventario generado:"
+        cat $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
+      displayName: 'Generar inventory/hosts.ini'
+    
+    - script: |
+        cd $(System.DefaultWorkingDirectory)/ansible-deploy
+        ANSIBLE_HOST_KEY_CHECKING=False \
+        ANSIBLE_ROLES_PATH=./roles \
+        ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml
+      displayName: 'Ejecutar playbook Ansible'

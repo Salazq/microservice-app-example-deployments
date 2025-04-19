@@ -1,0 +1,12 @@
+trigger: none
+
+steps:
+- task: AzureCLI@2
+  displayName: 'Eliminar grupo de recursos'
+  inputs:
+    azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az group delete --name my-first-terraform-RG --yes --no-wait
+      echo "Grupo de recursos eliminado o en proceso de eliminación"
