@@ -119,7 +119,36 @@ stages:
       displayName: 'Capture Public IP'
       name: CaptureIP
 
+- stage: Save_IP
+  dependsOn: Terraform_apply
+  condition: succeeded()
+  jobs:
+  - job: Update_Variables
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Obtener la IP del output de Terraform
+          cd $(System.DefaultWorkingDirectory)/terraform
+          IP=$(terraform output -raw public_ip_address)
+          echo "IP obtenida: $IP"
+          
+          # Actualizar Variable Group
+          az pipelines variable-group update \
+            --group-id 1 \
+            --organization "https://dev.azure.com/salazq" \
+            --project "microservice-app-example" \
+            --name "variable-group-taller" \
+            --variables VM_IP=$IP
+          
+          echo "Variable Group actualizado correctamente"
+      displayName: 'Actualizar Variable Group con IP pública'
+
 - stage: Ansible_Deploy
+  condition: false
   dependsOn: Terraform_apply
   variables:
     PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
