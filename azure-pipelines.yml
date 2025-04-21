@@ -1,15 +1,10 @@
-trigger:
-  branches:
-    include:
-      - main
-  
-  paths:
-    include:
-      - terraform/*
-      - ansible-deploy/*
+trigger: none
 
 pool:
   vmImage: ubuntu-latest
+
+variables:
+  - group: variable-group-taller
 
 stages:
 - stage: Terraform_plan
@@ -40,7 +35,7 @@ stages:
             provider: 'azurerm'
             command: 'init'
             workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+            backendServiceArm: $(AZURE_ACCOUNT)
             backendAzureRmResourceGroupName: 'VM'
             backendAzureRmStorageAccountName: 'vmrecursos'
             backendAzureRmContainerName: 'tfstate'
@@ -82,7 +77,7 @@ stages:
         provider: 'azurerm'
         command: 'init'
         workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-        backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        backendServiceArm: $(AZURE_ACCOUNT)
         backendAzureRmResourceGroupName: 'VM'
         backendAzureRmStorageAccountName: 'recursos'
         backendAzureRmContainerName: 'tfstate'
@@ -109,7 +104,7 @@ stages:
         command: 'apply'
         workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
         commandOptions: '"plan.out"'
-        environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        environmentServiceNameAzureRM: $(AZURE_ACCOUNT)
 
     - script: |
         cd $(System.DefaultWorkingDirectory)/terraform
@@ -120,27 +115,51 @@ stages:
       name: CaptureIP
 
 - stage: Ansible_Deploy
+  #condition: false
   dependsOn: Terraform_apply
   variables:
     PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
   jobs:
   - job: Configure
     steps:
+    # 1. Configurar Python 3.12 (igual que local)
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.12.x'
+        addToPath: true
+      displayName: 'Configurar Python 3.12'
+
+    # 2. Instalar versiones específicas de Ansible
+    - script: |
+        python -m pip install --upgrade pip
+        pip install ansible-core==2.16.3 cryptography==42.0.5
+        ansible --version
+      displayName: 'Instalar Ansible 2.16.3'
+
+    # 3. Configurar ansible.cfg
+    - script: |
+        mkdir -p $(System.DefaultWorkingDirectory)/ansible-deploy
+        echo "[defaults]" > $(System.DefaultWorkingDirectory)/ansible-deploy/ansible.cfg
+        echo "host_key_checking = False" >> $(System.DefaultWorkingDirectory)/ansible-deploy/ansible.cfg
+        echo "roles_path = ./roles" >> $(System.DefaultWorkingDirectory)/ansible-deploy/ansible.cfg
+      displayName: 'Configurar ansible.cfg'
+
+    # 4. Generar inventory/hosts.ini
     - script: |
         echo "Generando archivo de inventario..."
         mkdir -p $(System.DefaultWorkingDirectory)/ansible-deploy/inventory
         cat <<EOF > $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
         [azure_vm]
-        $(PUBLIC_IP) ansible_user=azureuser ansible_ssh_pass=SuperSecret123!
+        $(PUBLIC_IP) ansible_user=$(VM_USERNAME) ansible_ssh_pass=$(VM_PASSWORD) ansible_python_interpreter=/usr/bin/python3
         EOF
         
-        echo "Inventario generado:"
-        cat $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
+        echo "Inventario generado (credenciales ocultas):"
+        cat $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini | sed 's/ansible_ssh_pass=.*/ansible_ssh_pass=*******/'
       displayName: 'Generar inventory/hosts.ini'
-    
+
+    # 5. Ejecutar playbook con verbosidad
     - script: |
         cd $(System.DefaultWorkingDirectory)/ansible-deploy
-        ANSIBLE_HOST_KEY_CHECKING=False \
-        ANSIBLE_ROLES_PATH=./roles \
-        ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml
-      displayName: 'Ejecutar playbook Ansible'
+        ANSIBLE_CONFIG=$(System.DefaultWorkingDirectory)/ansible-deploy/ansible.cfg \
+        ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml -vvv
+      displayName: 'Ejecutar playbook Ansible (verbose)'
