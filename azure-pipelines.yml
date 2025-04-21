@@ -3,6 +3,9 @@ trigger: none
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  - group: variable-group-taller
+
 stages:
 - stage: Terraform_plan
   jobs:
@@ -32,7 +35,7 @@ stages:
             provider: 'azurerm'
             command: 'init'
             workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+            backendServiceArm: $(AZURE_ACCOUNT)
             backendAzureRmResourceGroupName: 'VM'
             backendAzureRmStorageAccountName: 'vmrecursos'
             backendAzureRmContainerName: 'tfstate'
@@ -74,7 +77,7 @@ stages:
         provider: 'azurerm'
         command: 'init'
         workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-        backendServiceArm: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        backendServiceArm: $(AZURE_ACCOUNT)
         backendAzureRmResourceGroupName: 'VM'
         backendAzureRmStorageAccountName: 'recursos'
         backendAzureRmContainerName: 'tfstate'
@@ -101,7 +104,7 @@ stages:
         command: 'apply'
         workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
         commandOptions: '"plan.out"'
-        environmentServiceNameAzureRM: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+        environmentServiceNameAzureRM: $(AZURE_ACCOUNT)
 
     - script: |
         cd $(System.DefaultWorkingDirectory)/terraform
@@ -147,7 +150,7 @@ stages:
         mkdir -p $(System.DefaultWorkingDirectory)/ansible-deploy/inventory
         cat <<EOF > $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini
         [azure_vm]
-        $(PUBLIC_IP) ansible_user=azureuser ansible_ssh_pass=SuperSecret123! ansible_python_interpreter=/usr/bin/python3
+        $(PUBLIC_IP) ansible_user=$(VM_USERNAME) ansible_ssh_pass=$(VM_PASSWORD) ansible_python_interpreter=/usr/bin/python3
         EOF
         
         echo "Inventario generado (credenciales ocultas):"
