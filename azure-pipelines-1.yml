@@ -1,10 +1,13 @@
 trigger: none
 
+variables:
+  - group: variable-group-taller
+
 steps:
 - task: AzureCLI@2
   displayName: 'Eliminar grupo de recursos'
   inputs:
-    azureSubscription: 'Azure for Students(bfc3d097-7e73-40b8-aa34-e70b307c0867)'
+    azureSubscription: $(AZURE_ACCOUNT)
     scriptType: 'pscore'
     scriptLocation: 'inlineScript'
     inlineScript: |
