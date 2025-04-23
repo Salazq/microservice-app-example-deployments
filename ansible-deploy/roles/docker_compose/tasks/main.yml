@@ -10,6 +10,6 @@
     state: present
 
 - name: Ejecutar docker-compose
-  command: docker-compose -f Docker-compose.yml up -d
+  command: docker-compose -f Docker-compose.yml up -d  # Ejecuta el archivo Docker Compose para iniciar los contenedores en segundo plano.
   args:
     chdir: /home/azureuser/tu-repo

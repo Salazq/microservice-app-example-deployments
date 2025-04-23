@@ -1,4 +1,5 @@
 trigger: none
+# Este pipeline no se ejecuta automáticamente. Se debe disparar manualmente.
 
 pool:
   vmImage: ubuntu-latest
@@ -8,6 +9,7 @@ variables:
 
 stages:
 - stage: Terraform_plan
+# Primera etapa: Generar el plan de Terraform.
   jobs:
     - job: Plan
       continueOnError: false
@@ -60,18 +62,22 @@ stages:
             artifact: 'Plan'
             publishLocation: 'pipeline'
           displayName: 'Publish Plan Artifact'
+          # Publica el archivo del plan como un artefacto para usarlo en etapas posteriores.
 
 - stage: Terraform_apply 
+# Segunda etapa: Aplicar el plan de Terraform.
   jobs:
   - job: Deploy
     continueOnError: false
     steps:
    
+   # Paso 1: Instalar Terraform
     - task: TerraformInstaller@0
       inputs:
         terraformVersion: '1.5.7'
         displayName: 'Install Terraform'
 
+  # Paso 2: Inicializar Terraform
     - task: TerraformTaskV4@4
       inputs:
         provider: 'azurerm'
@@ -84,6 +90,7 @@ stages:
         backendAzureRmKey: 'pipelines.tfstate'
       displayName: 'Terraform init'
       
+      # Paso 3: Descargar artefacto del plan
     - task: DownloadBuildArtifacts@1
       inputs:
         buildType: 'current'
@@ -92,12 +99,14 @@ stages:
         downloadPath: '$(System.DefaultWorkingDirectory)/terraform'
       displayName: 'Download Plan Artifact'
     
+    # Paso 4: Verificar archivo del plan
     - task: Bash@3
       inputs:
         targetType: 'inline'
         script: 'ls -a'
       displayName: 'Check plan file'
 
+    # Paso 5: Aplicar el plan de Terraform
     - task: TerraformTaskV4@4
       inputs:
         provider: 'azurerm'
@@ -106,6 +115,7 @@ stages:
         commandOptions: '"plan.out"'
         environmentServiceNameAzureRM: $(AZURE_ACCOUNT)
 
+  # Paso 6: Capturar la dirección IP pública
     - script: |
         cd $(System.DefaultWorkingDirectory)/terraform
         PUBLIC_IP=$(terraform output -raw public_ip_address)
@@ -119,6 +129,7 @@ stages:
   dependsOn: Terraform_apply
   variables:
     PUBLIC_IP: $[stageDependencies.Terraform_apply.Deploy.outputs['CaptureIP.PUBLIC_IP']]
+     # Usa la dirección IP capturada en la etapa anterior como variable.
   jobs:
   - job: Configure
     steps:
@@ -157,7 +168,7 @@ stages:
         cat $(System.DefaultWorkingDirectory)/ansible-deploy/inventory/hosts.ini | sed 's/ansible_ssh_pass=.*/ansible_ssh_pass=*******/'
       displayName: 'Generar inventory/hosts.ini'
 
-    # 5. Ejecutar playbook con verbosidad
+    # 5. Ejecutar playbook
     - script: |
         cd $(System.DefaultWorkingDirectory)/ansible-deploy
         ANSIBLE_CONFIG=$(System.DefaultWorkingDirectory)/ansible-deploy/ansible.cfg \
